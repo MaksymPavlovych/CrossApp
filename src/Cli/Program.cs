@@ -1,4 +1,4 @@
-﻿using Core.Dto;
+using Core.Dto;
 using Core.Import;
 
 string path = args.Length > 0 ? args[0] : Path.Combine("data", "sample.csv");

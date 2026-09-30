@@ -59,3 +59,4 @@ public static class ProductCsvImporter
     private sealed record ParseOk(ProductDto Value) : ParseOutcome;
     private sealed record ParseFailed(string Reason) : ParseOutcome;
 }
+product.Quantity = -5;

@@ -16,3 +16,15 @@ CrossApp — наскрізний проєкт з крос-платформно�
 - Початковий залишок (Quantity) не може бути від'ємним (ArgumentOutOfRangeException)
 - Кількість приходу/видачі має бути більшою за нуль (ArgumentOutOfRangeException)
 - Не можна видати більше товару, ніж є в наявності (InvalidOperationException)
+
+## Сервісний шар (лаб 5)
+
+`ICatalogStore` — контракт сховища (Core/Abstractions)
+`InMemoryCatalogStore` — реалізація в пам'яті`FileCatalogStore` — реалізація через JSON-файл (data/catalog.json)
+`CatalogService` — бізнес-операції (Add, Receive), залежить лише від інтерфейсу
+
+## Події (лаб 6)
+
+- `CatalogService.Changed` — подія `EventHandler<CatalogChangedEventArgs>`, піднімається після успішної зміни (Added / Received / Issued / Removed)
+- Core не пише в консоль і лог: підписники (консоль + `logs/app.log`) живуть у Cli
+- `FindAll(Func<Product, bool>)` — пошук за довільним критерієм

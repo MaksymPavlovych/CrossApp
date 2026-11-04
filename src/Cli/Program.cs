@@ -1,6 +1,7 @@
 using Core;
 using Core.Abstractions;
-using Core.Events;
+using Core.Domain;
+using Core.Reports;
 using Core.Services;
 using Core.Storage;
 
@@ -12,57 +13,52 @@ ICatalogStore store = useFile
     : new InMemoryCatalogStore(SampleData.Products());
 
 var service = new CatalogService(store);
+var items = service.All();
+
+var command = args.FirstOrDefault(a => !a.StartsWith("--")) ?? "report-top";
 
 Console.WriteLine($"Сховище: {store.GetType().Name}");
 
-// --- Підписник 1: локальний метод (його можна буде відписати) ---
-var logPath = Path.Combine(AppContext.BaseDirectory, "logs", "app.log");
-Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
-
-void OnCatalogChanged(object? sender, CatalogChangedEventArgs e)
+switch (command)
 {
-    var line = $"{e.At:HH:mm:ss} {e.Kind,-8} {e.Id} {e.Delta,4:+0;-0} → залишок {e.QuantityAfter}";
-    Console.WriteLine(line);
-    File.AppendAllText(logPath, line + Environment.NewLine);
+    case "report-top":
+        Print(ReportService.TopByQuantity(items, 5));
+        break;
+    case "report-low":
+        Print(ReportService.LowStock(items, 10));
+        break;
+    case "report-groups":
+        foreach (var g in ReportService.ByUnit(items))
+            Console.WriteLine($"  {g.Key,-6} позицій: {g.Count,3} сумарно: {g.TotalQuantity,6}");
+        break;
+    case "report-sum":
+        var t = ReportService.Totals(items);
+        Console.WriteLine($"  позицій {t.Items}, всього {t.Total}, середнє {t.Average:F2}, макс {t.Max}");
+        break;
+    case "demo-lazy":
+        DemoLazy(service);
+        break;
+    default:
+        Console.WriteLine("report-top | report-low | report-groups | report-sum | demo-lazy");
+        break;
 }
 
-service.Changed += OnCatalogChanged;
-
-// --- Підписник 2: лямбда із замиканням над змінною changes ---
-int changes = 0;
-service.Changed += (_, _) => changes++;
-
-// --- Сценарій успіху ---
-var created = service.Add("SKU-101", "Кабель UTP cat6", "м", 50);
-service.Receive(created.Id, 25);
-Console.WriteLine($"Подій отримано: {changes}");
-
-// --- Відписка: операція виконується, повідомлення в консолі/лозі немає ---
-service.Changed -= OnCatalogChanged;
-service.Receive(created.Id, 5);
-Console.WriteLine($"Подій отримано: {changes}"); // +1 лише від лямбди-лічильника
-
-// --- Сценарій відмови: виняток є, події немає ---
-try
+static void Print(IReadOnlyList<StockLine> lines)
 {
-    service.Receive(created.Id, -10);
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"Помилка: {ex.Message}");
+    foreach (var l in lines)
+        Console.WriteLine($"  {l.Sku,-10} {l.Name,-32} {l.Quantity,6} {l.Unit}");
 }
 
-try
+static void DemoLazy(CatalogService service)
 {
-    service.Receive("NON-EXISTENT-ID", 10);
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"Помилка: {ex.Message}");
-}
+    var source = service.All().ToList();
+    var query = source.Where(p => p.Quantity < 10); // запит побудовано, не виконано
+    Console.WriteLine($"Дефіцитних до змін: {query.Count()}");
 
-// --- Func замість події: пошук за критерієм ---
-service.Add("SKU-102", "Ізострічка", "шт", 5);
-Console.WriteLine("Залишок менше 10:");
-foreach (var p in service.FindAll(p => p.Quantity < 10))
-    Console.WriteLine($"  {p.Sku} {p.Name} — {p.Quantity} {p.Unit}");
+    source.Add(Product.Create("tmp00001", "SKU-999", "Скоба", "шт", 3));
+    Console.WriteLine($"Дефіцитних після змін: {query.Count()}"); // число інше
+
+    var snapshot = query.ToList(); // результат зафіксовано
+    source.Clear();
+    Console.WriteLine($"У знімку лишилось: {snapshot.Count}"); // не змінюється
+}

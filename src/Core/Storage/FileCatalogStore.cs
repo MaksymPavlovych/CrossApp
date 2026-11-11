@@ -7,7 +7,6 @@ namespace Core.Storage;
 
 public sealed class FileCatalogStore(string path) : ICatalogStore
 {
-    private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
     private readonly Dictionary<string, Product> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _path = Path.GetFullPath(path);
     private bool _loaded;
@@ -17,30 +16,30 @@ public sealed class FileCatalogStore(string path) : ICatalogStore
         if (_loaded) return;
         if (File.Exists(_path))
         {
-            var dtos = JsonSerializer.Deserialize<List<ProductDto>>(File.ReadAllText(_path)) ?? [];
-            foreach (var dto in dtos) { var p = Product.FromDto(dto); _cache[p.Id] = p; }
+            var dtos = JsonSerializer.Deserialize<List<ProductDto>>(
+                File.ReadAllText(_path), CatalogJson.Options) ?? [];
+            _cache.Clear();
+            foreach (var dto in dtos)
+            {
+                var product = Product.FromDto(dto); // повторно перевіряє інваріанти
+                _cache[product.Id] = product;
+            }
         }
         _loaded = true;
     }
 
     private void Flush()
     {
+        var dtos = _cache.Values.Select(p => p.ToDto()).ToList();
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        File.WriteAllText(_path,
-            JsonSerializer.Serialize(_cache.Values.Select(p => p.ToDto()).ToList(), Options));
+        var tmp = _path + ".tmp";
+        File.WriteAllText(tmp, JsonSerializer.Serialize(dtos, CatalogJson.Options));
+        File.Move(tmp, _path, overwrite: true);
     }
 
-    public IReadOnlyList<Product> List()
-    {
-        EnsureLoaded();
-        return _cache.Values.ToList();
-    }
+    public IReadOnlyList<Product> List() { EnsureLoaded(); return _cache.Values.ToList(); }
 
-    public Product? GetById(string id)
-    {
-        EnsureLoaded();
-        return _cache.GetValueOrDefault(id);
-    }
+    public Product? GetById(string id) { EnsureLoaded(); return _cache.GetValueOrDefault(id); }
 
     public void Add(Product item)
     {

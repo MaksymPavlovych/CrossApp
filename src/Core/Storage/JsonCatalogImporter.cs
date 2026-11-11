@@ -16,7 +16,7 @@ public sealed class JsonCatalogImporter : ICatalogImporter
         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
             FileShare.Read, 4096, useAsync: true);
 
-        var dtos = await JsonSerializer.DeserializeAsync<List<ProductDto>>(stream, Options, ct)
+        var dtos = await JsonSerializer.DeserializeAsync<List<ProductDto>>(stream, CatalogJson.Options, ct)
             ?? throw new DomainException($"Файл {Path.GetFileName(path)} не містить списку.");
 
         var result = new List<Product>(dtos.Count);

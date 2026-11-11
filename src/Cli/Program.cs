@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Core;
 using Core.Abstractions;
 using Core.Domain;
@@ -13,52 +14,54 @@ ICatalogStore store = useFile
     : new InMemoryCatalogStore(SampleData.Products());
 
 var service = new CatalogService(store);
-var items = service.All();
 
-var command = args.FirstOrDefault(a => !a.StartsWith("--")) ?? "report-top";
+var positional = args.Where(a => !a.StartsWith("--")).ToArray();
+var command = positional.FirstOrDefault() ?? "report-top";
+
+using var cts = new CancellationTokenSource();
+Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+if (args.Contains("--cancel")) cts.Cancel(); // для демонстрації скасування
+// cts.CancelAfter(TimeSpan.FromSeconds(2));  // варіант: скасування за таймаутом
 
 Console.WriteLine($"Сховище: {store.GetType().Name}");
 
-switch (command)
+try
 {
-    case "report-top":
-        Print(ReportService.TopByQuantity(items, 5));
-        break;
-    case "report-low":
-        Print(ReportService.LowStock(items, 10));
-        break;
-    case "report-groups":
-        foreach (var g in ReportService.ByUnit(items))
-            Console.WriteLine($"  {g.Key,-6} позицій: {g.Count,3} сумарно: {g.TotalQuantity,6}");
-        break;
-    case "report-sum":
-        var t = ReportService.Totals(items);
-        Console.WriteLine($"  позицій {t.Items}, всього {t.Total}, середнє {t.Average:F2}, макс {t.Max}");
-        break;
-    case "demo-lazy":
-        DemoLazy(service);
-        break;
-    default:
-        Console.WriteLine("report-top | report-low | report-groups | report-sum | demo-lazy");
-        break;
+    switch (command)
+    {
+        case "report-top":
+            Print(ReportService.TopByQuantity(service.All(), 5));
+            break;
+        case "report-low":
+            Print(ReportService.LowStock(service.All(), 10));
+            break;
+        case "report-groups":
+            foreach (var g in ReportService.ByUnit(service.All()))
+                Console.WriteLine($"  {g.Key,-6} позицій: {g.Count,3} сумарно: {g.TotalQuantity,6}");
+            break;
+        case "report-sum":
+            var t = ReportService.Totals(service.All());
+            Console.WriteLine($"  позицій {t.Items}, всього {t.Total}, середнє {t.Average:F2}, макс {t.Max}");
+            break;
+        case "import":
+        {
+            var importPath = positional.Skip(1).FirstOrDefault() ?? Path.Combine("data", "import.json");
+            var added = await service.ImportAsync(new JsonCatalogImporter(), importPath, cts.Token);
+            Console.WriteLine($"Імпортовано записів: {added}");
+            break;
+        }
+        default:
+            Console.WriteLine("report-top | report-low | report-groups | report-sum | import [шлях]");
+            break;
+    }
 }
+catch (OperationCanceledException) { Console.WriteLine("Імпорт скасовано."); }
+catch (DomainException ex) { Console.WriteLine($"Дані відхилено: {ex.Message}"); }
+catch (FileNotFoundException ex) { Console.WriteLine($"Файл не знайдено: {ex.FileName}"); }
+catch (JsonException ex) { Console.WriteLine($"Файл пошкоджений (JSON): {ex.Message}"); }
 
 static void Print(IReadOnlyList<StockLine> lines)
 {
     foreach (var l in lines)
         Console.WriteLine($"  {l.Sku,-10} {l.Name,-32} {l.Quantity,6} {l.Unit}");
-}
-
-static void DemoLazy(CatalogService service)
-{
-    var source = service.All().ToList();
-    var query = source.Where(p => p.Quantity < 10); // запит побудовано, не виконано
-    Console.WriteLine($"Дефіцитних до змін: {query.Count()}");
-
-    source.Add(Product.Create("tmp00001", "SKU-999", "Скоба", "шт", 3));
-    Console.WriteLine($"Дефіцитних після змін: {query.Count()}"); // число інше
-
-    var snapshot = query.ToList(); // результат зафіксовано
-    source.Clear();
-    Console.WriteLine($"У знімку лишилось: {snapshot.Count}"); // не змінюється
 }

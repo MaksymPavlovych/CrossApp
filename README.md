@@ -60,3 +60,32 @@ bash: `CROSSAPP_DATA_PATH=/tmp/data dotnet run --project src/Cli -- export`
 
 Секрет: `dotnet user-secrets set "Integration:ApiKey" "..." --project src/Cli`
 Команди: `export [шлях]`, `import [шлях]`, `report-top|low|groups|sum`; `--file` вмикає файлове сховище.
+
+## HTTP API (лаб 10)
+
+Запуск: `dotnet run --project src/Api` (порт 5080).
+Scalar UI: http://localhost:5080/scalar/v1
+
+| Метод | Шлях | Коди |
+|---|---|---|
+| GET | /api/products | 200 |
+| GET | /api/products/{id} | 200, 404 |
+| POST | /api/products | 201, 400 |
+| PUT | /api/products/{id} | 200, 400, 404 |
+| DELETE | /api/products/{id} | 204, 404 |
+
+```bash
+curl -i -X POST http://localhost:5080/api/products -H "Content-Type: application/json" \
+  -d '{"sku":"A-100","name":"Цемент М400","unit":"мішок","quantity":40}'
+```
+
+## База даних (лаб 11)
+
+SQLite, файл `src/Api/data/app.db` (у .gitignore). Рядок підключення: `ConnectionStrings:AppDb` в appsettings.json.
+
+Міграції:
+- створити: `dotnet ef migrations add <Назва> --project src/Infrastructure --startup-project src/Api`
+- застосувати: `dotnet ef database update --project src/Infrastructure --startup-project src/Api`
+- скинути БД: видалити `src/Api/data/app.db` і застосувати міграції знову
+
+У Development міграції застосовуються автоматично при старті Api.

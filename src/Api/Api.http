@@ -1,0 +1,44 @@
+@host = http://localhost:5080
+@id = 200
+
+### Health
+GET {{host}}/health
+
+### Список
+GET {{host}}/api/products
+
+### Створити (201)
+POST {{host}}/api/products
+Content-Type: application/json
+
+{ "sku": "A-100", "name": "Цемент М400", "unit": "мішок", "quantity": 40 }
+
+### Отримати за id
+GET {{host}}/api/products/{{id}}
+
+### Оновити
+PUT {{host}}/api/products/{{id}}
+Content-Type: application/json
+
+{ "sku": "A-100", "name": "Цемент М500", "unit": "мішок", "quantity": 55 }
+
+### Оновити з порожньою назвою (400)
+PUT {{host}}/api/products/{{id}}
+Content-Type: application/json
+
+{ "sku": "A-100", "name": "", "unit": "мішок", "quantity": 55 }
+
+### Створити зі зламаними даними (400)
+POST {{host}}/api/products
+Content-Type: application/json
+
+{ "sku": "", "name": "X", "unit": "", "quantity": -1 }
+
+### Видалити (204)
+DELETE {{host}}/api/products/{{id}}
+
+### Після видалення (404)
+GET {{host}}/api/products/{{id}}
+
+### Дефіцит
+GET {{host}}/api/products/low-stock?threshold=10
